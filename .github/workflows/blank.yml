@@ -1,0 +1,37 @@
+name: Backend Compile Check
+
+on:
+  push:
+    paths:
+      - "backend/**"
+      - ".github/workflows/blank.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/blank.yml"
+  workflow_dispatch:
+
+jobs:
+  backend-compile-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Validate backend compiles
+        run: python -m compileall -q backend
+
+      - name: Validate backend entrypoint imports
+        working-directory: backend
+        run: python -c "import main"

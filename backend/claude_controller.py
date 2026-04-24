@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from claude_wrapper import ClaudeWrapper
-from models import FoodItem, Person
+from models import FoodItem, Info, Person
 
 
 class ClaudeController:
@@ -52,8 +53,11 @@ class ClaudeController:
         )
 
     @staticmethod
-    def parse_people_from_receipt(receipt_text: str, user_prompt: str) -> list[Person]:
-        """Convert receipt text plus user allocation notes into Person objects.
+    def parse_people_from_receipt(
+        receipt_text: str,
+        user_prompt: str,
+    ) -> tuple[Info, list[Person]]:
+        """Convert receipt text plus user allocation notes into Info and Person objects.
 
         Purpose:
         This method is the structured parsing entry point for bill-splitting logic.
@@ -73,8 +77,10 @@ class ClaudeController:
           2) Model returns invalid JSON or schema.
 
         Returns:
-        - list[Person], where each Person contains a name and a list of FoodItem
-          entries assigned to that person.
+                - A tuple of (Info, list[Person]).
+                - Info contains meal metadata (location, time, total_price).
+                - Each Person contains a name and a list of FoodItem entries assigned to
+                    that person.
 
         Example:
         ClaudeController.parse_people_from_receipt(
@@ -107,7 +113,9 @@ class ClaudeController:
 
             try:
                 parsed_json = ClaudeController._extract_json_payload(response)
-                return ClaudeController._map_people(parsed_json)
+                info = ClaudeController._map_info(parsed_json)
+                people = ClaudeController._map_people(parsed_json)
+                return info, people
             except (json.JSONDecodeError, ValueError, TypeError):
                 retry_note = (
                     "Previous output was not valid JSON for the required schema. "
@@ -121,7 +129,7 @@ class ClaudeController:
         return f"{base_prompt}\n\nAdditional user instructions:\n{user_prompt}"
 
     @staticmethod
-    def _extract_json_payload(raw_response: str) -> list[dict[str, object]]:
+    def _extract_json_payload(raw_response: str) -> dict[str, Any]:
         marker = "==="
         payload = raw_response
 
@@ -130,16 +138,45 @@ class ClaudeController:
 
         data = json.loads(payload)
 
-        if not isinstance(data, list):
-            raise ValueError("Top-level JSON payload must be an array.")
+        if not isinstance(data, dict):
+            raise ValueError("Top-level JSON payload must be an object.")
+
+        if "info" not in data or "people" not in data:
+            raise ValueError("JSON payload must include 'info' and 'people' keys.")
 
         return data
 
     @staticmethod
-    def _map_people(data: list[dict[str, object]]) -> list[Person]:
-        people: list[Person] = []
+    def _map_info(data: dict[str, Any]) -> Info:
+        info_obj = data.get("info")
 
-        for person_obj in data:
+        if not isinstance(info_obj, dict):
+            raise ValueError("info must be an object.")
+
+        location = info_obj.get("location")
+        time = info_obj.get("time")
+        total_price = info_obj.get("total_price")
+
+        if not isinstance(location, str):
+            raise ValueError("Info location must be a string.")
+
+        if not isinstance(time, str):
+            raise ValueError("Info time must be a string.")
+
+        if not isinstance(total_price, (float, int)):
+            raise ValueError("Info total_price must be numeric.")
+
+        return Info(location=location, time=time, total_price=float(total_price))
+
+    @staticmethod
+    def _map_people(data: dict[str, Any]) -> list[Person]:
+        people: list[Person] = []
+        people_raw = data.get("people")
+
+        if not isinstance(people_raw, list):
+            raise ValueError("people must be an array.")
+
+        for person_obj in people_raw:
             if not isinstance(person_obj, dict):
                 raise ValueError("Each person item must be an object.")
 

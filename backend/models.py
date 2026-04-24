@@ -13,3 +13,10 @@ class FoodItem:
 class Person:
     name: str
     food_items: list[FoodItem] = field(default_factory=list)
+
+
+@dataclass
+class Info:
+    location: str
+    time: str
+    total_price: float

@@ -23,7 +23,28 @@ class ClaudeController:
         system_prompt: str | None = None,
         temperature: float | None = None,
     ) -> str:
-        """Generate a response with optional system prompt and temperature."""
+        """Generate a Claude response with optional system context.
+
+        Purpose:
+        Use this helper when business logic needs a plain text LLM response,
+        but you still want to influence behavior through a system prompt.
+
+        Parameters:
+        - prompt: The user/task message sent to Claude.
+        - system_prompt: Optional high-level instructions (role, rules, format).
+        - temperature: Optional randomness control. Lower values are more
+          deterministic; higher values are more creative.
+
+        Returns:
+        - The first text response from Claude as a string.
+
+        Example:
+        ClaudeController.generate_with_context(
+            prompt="Summarize this receipt.",
+            system_prompt="Respond in one short paragraph.",
+            temperature=0,
+        )
+        """
         return ClaudeController._wrapper.generate(
             prompt=prompt,
             system_prompt=system_prompt,
@@ -32,27 +53,66 @@ class ClaudeController:
 
     @staticmethod
     def parse_people_from_receipt(receipt_text: str, user_prompt: str) -> list[Person]:
-        """Parse receipt + user context into Person objects with FoodItem arrays."""
+        """Convert receipt text plus user allocation notes into Person objects.
+
+        Purpose:
+        This method is the structured parsing entry point for bill-splitting logic.
+        It asks Claude to map receipt items to people, then validates and converts
+        the model output into typed domain objects.
+
+        Parameters:
+        - receipt_text: OCR/extracted receipt text containing items and prices.
+        - user_prompt: User guidance that explains who ate what.
+
+        Behavior:
+        - Builds a strict system prompt from PromptForInitialInformation.txt.
+        - Calls Claude with deterministic settings (temperature=0).
+        - Retries indefinitely until a valid JSON payload is returned.
+        - Handles two retry cases:
+          1) Model returns ERROR (user context was invalid/unrelated).
+          2) Model returns invalid JSON or schema.
+
+        Returns:
+        - list[Person], where each Person contains a name and a list of FoodItem
+          entries assigned to that person.
+
+        Example:
+        ClaudeController.parse_people_from_receipt(
+            receipt_text="Burger 8.50\nFries 3.00\nCola 2.50",
+            user_prompt="Alice had burger and cola, Bob had fries",
+        )
+        """
         system_prompt = ClaudeController._build_system_prompt(user_prompt)
-        response = ClaudeController._wrapper.generate(
-            prompt=(
-                "Receipt text:\n"
-                f"{receipt_text}\n\n"
-                "User context:\n"
-                f"{user_prompt}"
-            ),
-            system_prompt=system_prompt,
-            temperature=0,
-        ).strip()
+        retry_note = ""
 
-        if response.upper() == "ERROR":
-            raise ValueError(
-                "Please describe who ate what from the receipt. "
-                "Example: 'Alice ate burger and cola, Bob ate fries'."
-            )
+        while True:
+            response = ClaudeController._wrapper.generate(
+                prompt=(
+                    "Receipt text:\n"
+                    f"{receipt_text}\n\n"
+                    "User context:\n"
+                    f"{user_prompt}\n\n"
+                    f"{retry_note}"
+                ),
+                system_prompt=system_prompt,
+                temperature=0,
+            ).strip()
 
-        parsed_json = ClaudeController._extract_json_payload(response)
-        return ClaudeController._map_people(parsed_json)
+            if response.upper() == "ERROR":
+                retry_note = (
+                    "The user context was invalid or unrelated. Ask for a response "
+                    "that describes who ate what from the receipt."
+                )
+                continue
+
+            try:
+                parsed_json = ClaudeController._extract_json_payload(response)
+                return ClaudeController._map_people(parsed_json)
+            except (json.JSONDecodeError, ValueError, TypeError):
+                retry_note = (
+                    "Previous output was not valid JSON for the required schema. "
+                    "Return only valid JSON in the required format."
+                )
 
     @staticmethod
     def _build_system_prompt(user_prompt: str) -> str:

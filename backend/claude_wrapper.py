@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import anthropic
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).with_name(".env"))
 
 
 class ClaudeWrapper:

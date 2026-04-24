@@ -9,6 +9,9 @@ from functools import lru_cache
 from pathlib import Path
 
 from claude_controller import ClaudeController
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).with_name(".env"))
 
 DEFAULT_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-1")
 DEFAULT_TRANSCRIPTION_PROMPT = (

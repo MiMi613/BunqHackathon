@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.venv/
+venv/
+dist/
+build/
+*.so
+.env
+
+# Node / Next.js  (also covered by frontend/.gitignore)
+node_modules/
+.next/
+
+# OS
+.DS_Store
+Thumbs.db

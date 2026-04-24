@@ -31,7 +31,7 @@ Rules:
 	 - "name" (string)
 	 - "price" (number)
 5. If a food item appears multiple times, include separate objects for each occurrence.
-6. Add a person named "self" for receipt items not assigned to any named person.
+6. Add a person named "self" for receipt items not assigned to any named person, and to "I".
 7. Output must start with "===" and then valid JSON only.
 8. Output exactly ERROR when the user context is missing, invalid, or unrelated to assigning receipt items to people.
 9. Treat ERROR as a user-input validation signal, not a model failure.

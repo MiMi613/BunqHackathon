@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import argparse
 import base64
+import json
 import os
+from dataclasses import asdict
 from functools import lru_cache
 from pathlib import Path
+
+from claude_controller import ClaudeController
 
 DEFAULT_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-1")
 DEFAULT_TRANSCRIPTION_PROMPT = (
@@ -179,7 +183,27 @@ def main() -> int:
         media_type=args.media_type,
         prompt=args.prompt,
     )
+
+    print("\nTranscribed receipt:\n")
     print(text)
+
+    user_prompt = input(
+        "\nDescribe who ate what from this receipt: "
+    ).strip()
+    while not user_prompt:
+        user_prompt = input(
+            "Please enter a description related to the receipt: "
+        ).strip()
+
+    info, people = ClaudeController.parse_people_from_receipt(text, user_prompt)
+    verification_payload = {
+        "info": asdict(info),
+        "people": [asdict(person) for person in people],
+    }
+
+    print("\nParsed JSON objects for verification:\n")
+    print(json.dumps(verification_payload, indent=2))
+
     return 0
 
 

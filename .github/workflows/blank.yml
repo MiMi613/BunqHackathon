@@ -1,13 +1,10 @@
-name: Backend Compile Check
+name: Backend and Frontend Compile Check
 
 on:
-  push:
-    paths:
-      - "backend/**"
-      - ".github/workflows/blank.yml"
   pull_request:
     paths:
       - "backend/**"
+      - "frontend/**"
       - ".github/workflows/blank.yml"
   workflow_dispatch:
 
@@ -35,3 +32,28 @@ jobs:
       - name: Validate backend entrypoint imports
         working-directory: backend
         run: python -c "import main"
+
+  frontend-compile-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Validate frontend compiles
+        working-directory: frontend
+        run: npm run build

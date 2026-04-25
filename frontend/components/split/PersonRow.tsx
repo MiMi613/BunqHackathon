@@ -109,7 +109,7 @@ export function PersonRow({ person, card, sendCount, onSend }: PersonRowProps) {
           </div>
           <div className="mt-0.5 text-xs text-fg-muted">
             {isSent
-              ? "Payment sent"
+              ? "Payment request sent"
               : items.length === 0
                 ? "No items yet"
                 : `${items.length} ${items.length === 1 ? "item" : "items"}`}

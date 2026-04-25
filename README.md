@@ -1,75 +1,53 @@
-# BunqHackathon
+# Bunq Split
 
-Repository for our team at Bunq Hackathon 7.0.
+Bunq Split lets you split a restaurant bill with friends in seconds. Take a photo of your receipt, describe who had what, and the app automatically calculates each person's share and sends Bunq payment requests — no manual math, no awkward "who owes who" conversations.
 
-A full-stack template with a **Next.js** (TypeScript + Tailwind CSS) frontend and a **FastAPI (Python)** backend.
-
----
-
-## Project Structure
-
-```
-BunqHackathon/
-├── frontend/          # Next.js app (TypeScript, Tailwind CSS, App Router)
-└── backend/           # Python API (FastAPI)
-```
+Built at **Bunq Hackathon 7.0**.
 
 ---
 
-## Getting Started
+## How to run locally
 
-### 1. Backend (Python / FastAPI)
+You will need two terminals — one for the backend, one for the frontend.
+
+### Terminal 1 — Backend
 
 ```bash
 cd backend
 
-# (Optional) create a virtual environment
-python3 -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+python -m venv .venv
+.venv\Scripts\activate        # Mac/Linux: source .venv/bin/activate
 
-# Install dependencies
 pip install -r requirements.txt
 
-# Start the dev server (auto-reload on changes)
+cp .env.example .env
+```
+
+Open `.env` and fill in your `ANTHROPIC_API_KEY`, then:
+
+```bash
 uvicorn main:app --reload
 ```
 
-The API will be available at **http://localhost:8000**.  
-Interactive docs (Swagger UI) → **http://localhost:8000/docs**
+Backend runs at **http://localhost:8000**.
 
-### 2. Frontend (Next.js)
+### Terminal 2 — Frontend
 
 ```bash
 cd frontend
 
-# Copy env file and edit if needed
-cp .env.local.example .env.local
-
-# Install dependencies
 npm install
-
-# Start the dev server
 npm run dev
 ```
 
-The frontend will be available at **http://localhost:3000**.
+Frontend runs at **http://localhost:3000**. Open that in your browser.
 
 ---
 
-## Key Endpoints
+## Project structure
 
-| Method | Path            | Description                  |
-|--------|-----------------|------------------------------|
-| GET    | `/`             | API root / status message    |
-| GET    | `/api/hello`    | Returns a personalised greeting (`?name=`) |
-| GET    | `/api/health`   | Health check                 |
-| GET    | `/docs`         | Swagger / OpenAPI UI         |
-
----
-
-## Tech Stack
-
-| Layer     | Technology                        |
-|-----------|-----------------------------------|
-| Frontend  | Next.js 16, TypeScript, Tailwind  |
-| Backend   | Python 3, FastAPI, Uvicorn        |
+```
+BunqHackathon/
+├── frontend/    # Next.js (TypeScript, Tailwind CSS)
+└── backend/     # FastAPI (Python)
+```

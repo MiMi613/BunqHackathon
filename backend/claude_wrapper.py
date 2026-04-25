@@ -18,7 +18,7 @@ class ClaudeWrapper:
             raise ValueError("ANTHROPIC_API_KEY is not set in environment variables.")
 
         # Keep model name as a plain string.
-        self.model_name = "claude-opus-4-1-20250805"
+        self.model_name = "claude-opus-4-1"
         self.client = anthropic.Anthropic(api_key=api_key)
 
     def generate(

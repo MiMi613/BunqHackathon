@@ -8,7 +8,8 @@
  * remove (×) button.
  *
  * UX details:
- *  - capture="environment" tells iOS/Android to open the rear camera.
+ *  - The file input has no `capture` attr so mobile browsers offer the user
+ *    a chooser between the camera and the existing photo library.
  *  - A photo is required to send (the backend needs an image to OCR).
  *  - Camera button glows orange when an image is attached.
  *  - Textarea shows a primary focus ring.
@@ -62,6 +63,15 @@ export function InputBar() {
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Enter sends; Shift+Enter inserts a newline. Ignore IME composition
+    // so users typing CJK candidates don't accidentally fire send.
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      void handleSend();
+    }
+  };
+
   const hasImage = image !== null && imageDataUrl !== null;
 
   return (
@@ -89,11 +99,13 @@ export function InputBar() {
       )}
 
       <div className="flex items-end gap-2">
+        {/* No `capture` attr: mobile browsers then show their native picker
+            (iOS: "Take Photo" / "Photo Library" / "Choose File"; Android:
+            camera + gallery chooser), letting the user pick from either. */}
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
-          capture="environment"
           className="hidden"
           onChange={handleFileChange}
         />
@@ -116,11 +128,13 @@ export function InputBar() {
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder={
             hasImage ? "Who had what?" : "Add a photo of your receipt to start…"
           }
           rows={1}
           disabled={isSending}
+          enterKeyHint="send"
           className="max-h-32 min-h-[44px] flex-1 resize-none rounded-[var(--radius-input)] bg-elevated px-4 py-3 text-sm text-fg outline-none transition-shadow placeholder:text-fg-dim focus:ring-2 focus:ring-primary/50 disabled:opacity-60"
         />
 

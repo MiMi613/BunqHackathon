@@ -11,6 +11,11 @@
  *   - "unassigned"     → assignedTo = []
  *   - "split-equally"  → assignedTo = all people
  *
+ * Also owns the per-person "sent" counters. Tapping a row's send button or
+ * the global "Send to all" CTA both flow through here, bumping the same
+ * counters so the per-row confirmation toast and persistent green badge
+ * react identically regardless of which control fired.
+ *
  * The canonical state is the Zustand store's SplitCardData. All mutations
  * go through store.moveItem(splitId, itemId, newAssignedTo).
  *
@@ -31,7 +36,8 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useChatStore } from "@/lib/store/chatStore";
-import type { SplitCardData, SplitItem } from "@/lib/types/split";
+import type { PersonId, SplitCardData, SplitItem } from "@/lib/types/split";
+import { computePersonTotal } from "@/lib/utils/share";
 import { pickCategory, type CategoryColor } from "@/lib/utils/receipt-category";
 import { SplitCardHeader } from "./SplitCardHeader";
 import { PersonRow } from "./PersonRow";
@@ -59,6 +65,10 @@ export function SplitCard({ card }: SplitCardProps) {
   const moveItem = useChatStore((s) => s.moveItem);
   const [activeItem, setActiveItem] = useState<SplitItem | null>(null);
 
+  // Per-person send counter. Increment-only: PersonRow watches the diff to
+  // replay its toast on each bump, regardless of which CTA fired the send.
+  const [sendCounts, setSendCounts] = useState<Record<PersonId, number>>({});
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, {
@@ -68,6 +78,24 @@ export function SplitCard({ card }: SplitCardProps) {
 
   const unassigned = card.items.filter((i) => i.assignedTo.length === 0);
   const { color: categoryColor } = pickCategory(card.merchant);
+
+  const billable = card.people.filter(
+    (p) => !p.isSelf && computePersonTotal(card, p.id) > 0.01,
+  );
+  const allSent =
+    billable.length > 0 && billable.every((p) => (sendCounts[p.id] ?? 0) > 0);
+
+  const handleSendOne = (personId: PersonId) => {
+    setSendCounts((prev) => ({ ...prev, [personId]: (prev[personId] ?? 0) + 1 }));
+  };
+
+  const handleSendAll = () => {
+    setSendCounts((prev) => {
+      const next = { ...prev };
+      for (const p of billable) next[p.id] = (next[p.id] ?? 0) + 1;
+      return next;
+    });
+  };
 
   const handleDragStart = (e: DragStartEvent) => {
     const id = String(e.active.id);
@@ -117,16 +145,29 @@ export function SplitCard({ card }: SplitCardProps) {
         <div className="relative space-y-4">
           <SplitCardHeader card={card} />
 
-          <UnassignedZone items={unassigned} />
-          <SplitEquallyZone />
+          <div className="space-y-2">
+            <UnassignedZone items={unassigned} />
+            <SplitEquallyZone />
+          </div>
 
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             {card.people.map((person) => (
-              <PersonRow key={person.id} person={person} card={card} />
+              <PersonRow
+                key={person.id}
+                person={person}
+                card={card}
+                sendCount={sendCounts[person.id] ?? 0}
+                onSend={() => handleSendOne(person.id)}
+              />
             ))}
           </div>
 
-          <SendRequests card={card} blocked={unassigned.length > 0} />
+          <SendRequests
+            card={card}
+            blocked={unassigned.length > 0}
+            allSent={allSent}
+            onSendAll={handleSendAll}
+          />
         </div>
 
         <DragOverlay>

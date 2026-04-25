@@ -31,7 +31,7 @@ Rules:
 	 - "name" (string)
 	 - "price" (number)
 5. If a food item appears multiple times, include separate objects for each occurrence.
-6. Add a person named "self" for receipt items not assigned to any named person, and to "I".
+6. Use the person named "self" ONLY for items the user explicitly attributed to themselves (e.g. "I had X", "me", "my"). For receipt items that the user did NOT explicitly assign to anyone (neither a named person nor self), add them under a person named "unassigned". Do NOT silently fold unassigned items into "self".
 7. Output must start with "===" and then valid JSON only.
 8. Output exactly ERROR when the user context is missing, invalid, or unrelated to assigning receipt items to people.
 9. Treat ERROR as a user-input validation signal, not a model failure.

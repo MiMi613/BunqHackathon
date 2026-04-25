@@ -8,99 +8,114 @@
  *
  * Right side of the row:
  *  - <Money> with the person's current total.
- *  - A per-person send button (non-self only). Tapping it shares ONE
- *    bunq.me payment request link for THIS person via navigator.share()
- *    (with a clipboard fallback on desktop). Brief ✓ feedback for ~1.8s.
+ *  - A per-person send button (non-self only). It does NOT actually fire
+ *    navigator.share / clipboard — it only delegates to the parent via
+ *    onSend(). The parent owns the per-person sendCount; we read it back as
+ *    a prop and replay the confirmation toast each time the count bumps
+ *    (whether from this row's button or from a global "Send to all").
  *
  * The button is disabled when:
  *  - the person owes nothing (no items / 0¢), OR
  *  - any item on the card is unassigned (totals are not final).
  *
- * AnimatePresence wraps the chip list so each chip fades in when added
- * and fades out when removed (no layout animation, to stay out of dnd-kit's
- * way during active drags).
+ * Drag affordance: when ANY chip is being dragged, the row gains a soft
+ * primary ring as a "you can drop here" hint. When the chip is over THIS
+ * row specifically, the ring intensifies, the row tints, and it lifts a
+ * touch via translateY for tactile feedback.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpRight, Check } from "lucide-react";
+import { ArrowUpRight, Check, Plus } from "lucide-react";
 import { PersonAvatar } from "@/components/atoms/PersonAvatar";
 import { Money } from "@/components/atoms/Money";
 import { ItemChip } from "./ItemChip";
 import { cn } from "@/lib/utils/cn";
-import { buildShareLine, computePersonTotal } from "@/lib/utils/share";
+import { computePersonTotal } from "@/lib/utils/share";
 import type { Person, SplitCardData } from "@/lib/types/split";
 
 interface PersonRowProps {
   person: Person;
   card: SplitCardData;
+  /** Bumped by the parent every time a "send" is fired for this person. */
+  sendCount: number;
+  /** Asks the parent to record one more send for this person. */
+  onSend: () => void;
 }
 
-export function PersonRow({ person, card }: PersonRowProps) {
-  const { setNodeRef, isOver } = useDroppable({
+export function PersonRow({ person, card, sendCount, onSend }: PersonRowProps) {
+  const { setNodeRef, isOver, active } = useDroppable({
     id: `person:${person.id}`,
   });
+  const isDragActive = Boolean(active);
 
-  const [justSent, setJustSent] = useState(false);
+  const isSent = sendCount > 0;
+
+  // Local toast trigger: bumps when sendCount increments (from this button OR
+  // from "Send to all"). Skip the initial render so a row mounted with
+  // sendCount > 0 doesn't fire a phantom toast.
+  const [confirmTick, setConfirmTick] = useState(0);
+  const prevSendCount = useRef(sendCount);
+  useEffect(() => {
+    if (sendCount > prevSendCount.current) setConfirmTick((n) => n + 1);
+    prevSendCount.current = sendCount;
+  }, [sendCount]);
 
   const items = card.items.filter((i) => i.assignedTo.includes(person.id));
   const total = computePersonTotal(card, person.id);
   const hasUnassigned = card.items.some((i) => i.assignedTo.length === 0);
   const canSend = !person.isSelf && total > 0.01 && !hasUnassigned;
 
-  const handleSend = async () => {
+  const handleSend = () => {
     if (!canSend) return;
-    const line = buildShareLine(card, person.id);
-    if (!line) return;
-
-    let shared = false;
-    if (typeof navigator !== "undefined" && "share" in navigator) {
-      try {
-        await navigator.share({
-          title: `Payment request for ${person.name}`,
-          text: line,
-        });
-        shared = true;
-      } catch {
-        // user cancelled or share threw — try clipboard as fallback
-      }
-    }
-    if (!shared) {
-      try {
-        await navigator.clipboard.writeText(line);
-        shared = true;
-      } catch {
-        // nothing else to do; the button just stays in idle state
-      }
-    }
-    if (shared) {
-      setJustSent(true);
-      window.setTimeout(() => setJustSent(false), 1800);
-    }
+    onSend();
   };
 
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        "rounded-[20px] border border-hairline bg-elevated p-3 transition-colors",
-        isOver && "border-primary bg-primary/10",
+        "relative rounded-[20px] border bg-elevated p-3 transition-[transform,background-color,border-color,box-shadow] duration-200 ease-out",
+        // Resting state
+        "border-hairline",
+        // Once a payment has been confirmed, keep a subtle success accent.
+        isSent && "border-success/35 bg-success/[0.04]",
+        // Any drag in progress: subtle invitation ring (overrides sent tint).
+        isDragActive && "border-primary/25 bg-elevated/80",
+        // This row is the active target.
+        isOver &&
+          "-translate-y-0.5 border-primary bg-primary/10 shadow-[0_8px_24px_-12px_rgba(255,106,0,0.6)]",
       )}
     >
       <div className="flex items-center gap-3">
-        <PersonAvatar name={person.name} isSelf={person.isSelf} size="md" />
+        <div className="relative">
+          <PersonAvatar name={person.name} isSelf={person.isSelf} size="md" />
+          {isSent && (
+            <motion.span
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
+              className="absolute -bottom-1 -right-1 flex size-4 items-center justify-center rounded-full bg-success ring-2 ring-elevated"
+              aria-hidden
+            >
+              <Check size={10} strokeWidth={3.5} className="text-white" />
+            </motion.span>
+          )}
+        </div>
         <div className="min-w-0 flex-1">
           <div className="truncate font-semibold leading-tight">
             {person.isSelf ? "Me" : person.name}
           </div>
           <div className="mt-0.5 text-xs text-fg-muted">
-            {items.length === 0
-              ? "No items"
-              : `${items.length} ${items.length === 1 ? "item" : "items"}`}
+            {isSent
+              ? "Payment sent"
+              : items.length === 0
+                ? "No items yet"
+                : `${items.length} ${items.length === 1 ? "item" : "items"}`}
           </div>
         </div>
-        <Money amount={total} className="text-lg font-bold" />
+        <Money amount={total} className="text-lg font-bold tracking-tight" />
         {!person.isSelf && (
           <button
             type="button"
@@ -108,46 +123,122 @@ export function PersonRow({ person, card }: PersonRowProps) {
             disabled={!canSend}
             aria-label={
               canSend
-                ? `Send €${total.toFixed(2)} payment request to ${person.name}`
+                ? isSent
+                  ? `Payment sent to ${person.name}`
+                  : `Mark ${person.name}'s payment as sent`
                 : hasUnassigned
                   ? "Resolve unassigned items first"
                   : `${person.name} has nothing to pay`
             }
             className={cn(
-              "flex size-9 shrink-0 items-center justify-center rounded-full transition-all",
+              "relative flex size-9 shrink-0 items-center justify-center rounded-full transition-[transform,background-color,box-shadow] duration-200 ease-out active:scale-[0.94]",
               !canSend
                 ? "cursor-not-allowed bg-surface text-fg-dim"
-                : justSent
-                  ? "bg-success text-white"
-                  : "bg-gradient-to-br from-[#FF8A3C] to-[#FF6A00] text-white shadow-[0_0_0_0_rgba(255,106,0,0)] hover:shadow-[0_0_0_4px_rgba(255,106,0,0.18)] active:scale-95",
+                : isSent
+                  ? "bg-success text-white shadow-[0_0_0_4px_rgba(29,214,124,0.18)]"
+                  : "bg-gradient-to-br from-[#FF8A3C] to-[#FF6A00] text-white hover:shadow-[0_0_0_4px_rgba(255,106,0,0.18)]",
             )}
           >
-            {justSent ? (
-              <Check size={16} strokeWidth={3} />
-            ) : (
-              <ArrowUpRight size={16} strokeWidth={2.5} />
-            )}
+            <AnimatePresence initial={false} mode="wait">
+              {isSent ? (
+                <motion.span
+                  key="check"
+                  initial={{ scale: 0.4, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.4, opacity: 0 }}
+                  transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
+                  className="flex"
+                >
+                  <Check size={16} strokeWidth={3} />
+                </motion.span>
+              ) : (
+                <motion.span
+                  key="arrow"
+                  initial={{ scale: 0.4, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.4, opacity: 0 }}
+                  transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
+                  className="flex"
+                >
+                  <ArrowUpRight size={16} strokeWidth={2.5} />
+                </motion.span>
+              )}
+            </AnimatePresence>
           </button>
         )}
       </div>
 
-      {items.length > 0 && (
+      {/* Floating confirmation pill — keyed on confirmTick so it replays on
+          every send, including sends triggered by the global "Send to all". */}
+      <AnimatePresence>
+        {confirmTick > 0 && <ConfirmationPill key={confirmTick} />}
+      </AnimatePresence>
+
+      {items.length > 0 ? (
         <div className="mt-3 flex flex-wrap gap-2">
           <AnimatePresence initial={false}>
             {items.map((item) => (
               <motion.div
                 key={item.id}
-                initial={{ opacity: 0, scale: 0.85 }}
+                initial={{ opacity: 0, scale: 0.92 }}
                 animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.85 }}
-                transition={{ duration: 0.15 }}
+                exit={{ opacity: 0, scale: 0.92 }}
+                transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
               >
                 <ItemChip item={item} sharedAmong={item.assignedTo.length} />
               </motion.div>
             ))}
           </AnimatePresence>
         </div>
+      ) : (
+        // Ghost placeholder — only meaningful while a drag is in progress, so
+        // we hide it the rest of the time to keep the row compact.
+        isDragActive && (
+          <div
+            className={cn(
+              "mt-3 flex items-center justify-center gap-1.5 rounded-full border border-dashed py-2 text-xs font-medium transition-colors duration-200",
+              isOver
+                ? "border-primary text-primary"
+                : "border-hairline text-fg-dim",
+            )}
+          >
+            <Plus size={12} strokeWidth={2.5} />
+            Drop to assign
+          </div>
+        )
       )}
     </div>
+  );
+}
+
+/*
+ * <ConfirmationPill> — toast-style "Payment sent" badge that pops out from
+ * above the row's send button, holds briefly, then fades. Auto-unmounts
+ * 1.6s after mount via AnimatePresence + an internal effect — the parent
+ * just keys it on a tick to replay on each send.
+ */
+function ConfirmationPill() {
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setVisible(false), 1600);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          initial={{ opacity: 0, y: 6, scale: 0.92 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -4, scale: 0.96 }}
+          transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
+          className="pointer-events-none absolute -top-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-success px-2.5 py-1 text-[11px] font-semibold text-white shadow-[0_6px_20px_-6px_rgba(29,214,124,0.7)]"
+        >
+          <Check size={12} strokeWidth={3} />
+          Payment sent
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

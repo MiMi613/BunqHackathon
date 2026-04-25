@@ -12,7 +12,7 @@
  * triangle when off — useful when Claude misreads a price.
  */
 
-import { CheckCircle2, AlertTriangle } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { CategoryIcon } from "@/components/atoms/CategoryIcon";
 import { Money } from "@/components/atoms/Money";
 import { pickCategory } from "@/lib/utils/receipt-category";
@@ -26,8 +26,7 @@ export function SplitCardHeader({ card }: SplitCardHeaderProps) {
   const { icon, color } = pickCategory(card.merchant);
 
   const sumOfItems = card.items.reduce((acc, i) => acc + i.price, 0);
-  const diff = card.total - sumOfItems;
-  const matches = Math.abs(diff) < 0.01;
+  const matches = Math.abs(card.total - sumOfItems) < 0.01;
 
   return (
     <div className="flex items-start gap-3">
@@ -37,23 +36,14 @@ export function SplitCardHeader({ card }: SplitCardHeaderProps) {
           {card.merchant}
         </div>
         <div className="mt-0.5 text-xs text-fg-muted">{card.time}</div>
-        <div className="mt-1.5 inline-flex items-center gap-1.5 text-[11px]">
-          {matches ? (
-            <>
-              <CheckCircle2 size={12} className="text-success" />
-              <span className="text-fg-muted">
-                Items match the receipt total
-              </span>
-            </>
-          ) : (
-            <>
-              <AlertTriangle size={12} className="text-warning" />
-              <span className="text-warning">
-                Items sum to <Money amount={sumOfItems} className="text-warning" />
-              </span>
-            </>
-          )}
-        </div>
+        {matches && (
+          <div className="mt-1.5 inline-flex items-center gap-1.5 text-[11px]">
+            <CheckCircle2 size={12} className="text-success" />
+            <span className="text-fg-muted">
+              Items match the receipt total
+            </span>
+          </div>
+        )}
       </div>
       <Money amount={card.total} className="text-2xl font-bold leading-none" />
     </div>

@@ -64,12 +64,27 @@ export function isSharedCostItem(name: string): boolean {
 }
 
 /**
+ * Backend-side sentinel for "the model couldn't pin this item to anyone".
+ * Items under this pseudo-person get hoisted into assignedTo=[] on the
+ * client so they show up in the <UnassignedZone> and the user can drag them
+ * onto a real person before sending.
+ */
+const UNASSIGNED_BUCKET_NAME = "unassigned";
+
+const isUnassignedBucket = (name: string): boolean =>
+  name.trim().toLowerCase() === UNASSIGNED_BUCKET_NAME;
+
+/**
  * Adapter: turns the backend's nested response into the flat client shape.
  *
  * - Generates client-side ids via crypto.randomUUID() for people and items.
  *   The backend doesn't produce ids: after this step, the canonical state
  *   lives in Zustand on the client.
  * - Detects "self" → isSelf=true, so the UI can render it as "Me".
+ * - Treats the special "unassigned" backend person as a bucket: it is NOT
+ *   added to the people list (no row, no avatar). Its items are instead
+ *   flattened into the top-level items[] with assignedTo=[] so they land
+ *   in the <UnassignedZone>.
  * - Flattens people[].food_items[] into a single top-level items[] with
  *   assignedTo = [personId]. The backend currently assigns each item to ONE
  *   person; our client is already set up for shared items (multiple
@@ -81,30 +96,36 @@ export function isSharedCostItem(name: string): boolean {
 export function adaptBackendResponse(
   raw: BackendParseReceiptResponse,
 ): SplitCardData {
-  const people: Person[] = raw.people.map((p) => ({
-    id: crypto.randomUUID(),
-    name: p.name,
-    isSelf: p.name.trim().toLowerCase() === "self",
-  }));
+  const people: Person[] = raw.people
+    .filter((p) => !isUnassignedBucket(p.name))
+    .map((p) => ({
+      id: crypto.randomUUID(),
+      name: p.name,
+      isSelf: p.name.trim().toLowerCase() === "self",
+    }));
 
   // Name → id lookup so we can tie each item back to a person.
   const nameToPersonId = new Map(people.map((p) => [p.name, p.id]));
 
   let items: SplitItem[] = [];
   for (const backendPerson of raw.people) {
-    const personId = nameToPersonId.get(backendPerson.name);
-    if (!personId) continue;
+    const isUnassigned = isUnassignedBucket(backendPerson.name);
+    const personId = isUnassigned ? null : nameToPersonId.get(backendPerson.name);
+    if (!isUnassigned && !personId) continue;
     for (const fi of backendPerson.food_items) {
       items.push({
         id: crypto.randomUUID(),
         name: fi.name,
         price: fi.price,
-        assignedTo: [personId],
+        assignedTo: personId ? [personId] : [],
       });
     }
   }
 
   // Shared-cost auto-split: do it once, here, before the data hits the store.
+  // Applies to currently-assigned items as well as anything we just dropped
+  // into the unassigned bucket — service/tip/cover are universal regardless
+  // of whether the model could attribute them.
   if (people.length > 1) {
     const allIds = people.map((p) => p.id);
     items = items.map((item) =>

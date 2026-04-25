@@ -17,7 +17,7 @@
 
 import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Sparkles } from "lucide-react";
+import Image from "next/image";
 import { useChatStore } from "@/lib/store/chatStore";
 import { MinimizedPaymentBar } from "@/components/split/MinimizedPaymentBar";
 import { MessageUser } from "./MessageUser";
@@ -28,14 +28,19 @@ function EmptyState() {
   return (
     <div className="flex flex-col items-center gap-5 py-20 text-center">
       <div className="relative">
-        {/* Soft pulsing brand orb */}
+        {/* Soft pulsing brand orb — sits behind the logo as a colour halo. */}
         <div
           aria-hidden
           className="absolute inset-0 -m-4 animate-pulse rounded-full bg-primary/20 blur-2xl"
         />
-        <div className="relative flex size-16 items-center justify-center rounded-[20px] bg-gradient-to-br from-[#FF8A3C] to-[#FF3B5C] text-white">
-          <Sparkles size={28} />
-        </div>
+        <Image
+          src="/bunqSplit.png"
+          alt="bunq Split"
+          width={72}
+          height={72}
+          priority
+          className="relative size-[72px] rounded-[20px]"
+        />
       </div>
       <div className="space-y-1.5">
         <h2 className="text-xl font-bold tracking-tight">

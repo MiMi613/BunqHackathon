@@ -27,12 +27,21 @@
 import { useEffect, useRef, useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpRight, Check, Plus } from "lucide-react";
+import { Check, Link2, Plus, Send, Share2 } from "lucide-react";
 import { PersonAvatar } from "@/components/atoms/PersonAvatar";
 import { Money } from "@/components/atoms/Money";
 import { ItemChip } from "./ItemChip";
+import { ContactPickerModal } from "./ContactPickerModal";
 import { cn } from "@/lib/utils/cn";
-import { computePersonTotal } from "@/lib/utils/share";
+import {
+  buildBunqMeUrl,
+  buildShareLine,
+  computePersonTotal,
+} from "@/lib/utils/share";
+import {
+  useMinimizedPaymentStore,
+  type Recipient,
+} from "@/lib/store/minimizedPaymentStore";
 import type { Person, SplitCardData } from "@/lib/types/split";
 
 interface PersonRowProps {
@@ -62,6 +71,23 @@ export function PersonRow({ person, card, sendCount, onSend }: PersonRowProps) {
     prevSendCount.current = sendCount;
   }, [sendCount]);
 
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Local memory of the last recipient for THIS row, so the row keeps its
+  // "Sent to @marco.rossi" subtitle even after the global chip is dismissed.
+  const [confirmedRecipient, setConfirmedRecipient] = useState<Recipient | null>(
+    null,
+  );
+
+  // While the global chip is alive AND tied to this row, prefer its recipient
+  // (so re-confirming a different contact via the chip syncs the row label).
+  const myKey = `${card.splitId}:${person.id}`;
+  const minimizedCurrent = useMinimizedPaymentStore((s) => s.current);
+  const minimize = useMinimizedPaymentStore((s) => s.minimize);
+  const fromMinimized =
+    minimizedCurrent?.id === myKey ? minimizedCurrent.recipient : null;
+  const lastRecipient = fromMinimized ?? confirmedRecipient;
+
   const items = card.items.filter((i) => i.assignedTo.includes(person.id));
   const total = computePersonTotal(card, person.id);
   const hasUnassigned = card.items.some((i) => i.assignedTo.length === 0);
@@ -69,10 +95,32 @@ export function PersonRow({ person, card, sendCount, onSend }: PersonRowProps) {
 
   const handleSend = () => {
     if (!canSend) return;
-    onSend();
+    setPickerOpen(true);
   };
 
+  // The picker resolves successfully via either: a bunq contact tap, a
+  // confirmed system share, or a clipboard copy. In all three cases we
+  // count it as "sent" — the row flips to its success state.
+  const shareText = buildShareLine(card, person.id) ?? "";
+  const bunqUrl = buildBunqMeUrl(total, card.merchant);
+
+  // Subtitle + recipient avatar, derived from whichever recipient we know
+  // about. Falls back to the generic "Payment sent" when we have a sendCount
+  // but no recipient (e.g. row was bumped via "Send to all").
+  const recipientName =
+    lastRecipient?.kind === "bunq" ? lastRecipient.contact.name : null;
+  const recipientSubtitle = (() => {
+    if (!isSent) return null;
+    if (lastRecipient?.kind === "bunq") return `@${lastRecipient.contact.handle}`;
+    if (lastRecipient?.kind === "share")
+      return lastRecipient.method === "system"
+        ? "Shared via link"
+        : "Link copied";
+    return "Payment sent";
+  })();
+
   return (
+    <>
     <div
       ref={setNodeRef}
       className={cn(
@@ -96,20 +144,60 @@ export function PersonRow({ person, card, sendCount, onSend }: PersonRowProps) {
               initial={{ scale: 0.5, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
-              className="absolute -bottom-1 -right-1 flex size-4 items-center justify-center rounded-full bg-success ring-2 ring-elevated"
+              className="absolute -bottom-1 -right-1 flex items-center justify-center rounded-full ring-2 ring-elevated"
               aria-hidden
             >
-              <Check size={10} strokeWidth={3.5} className="text-white" />
+              {/* Recipient micro-tile: who the request actually went to.
+                  bunq contact → tiny overlapping avatar; share → tiny icon
+                  tile. Falls back to a green check when we don't know yet. */}
+              {lastRecipient?.kind === "bunq" ? (
+                <span className="block size-5 overflow-hidden rounded-full ring-1 ring-success">
+                  <PersonAvatar
+                    name={lastRecipient.contact.name}
+                    size="sm"
+                    className="size-5 rounded-full text-[9px]"
+                  />
+                </span>
+              ) : lastRecipient?.kind === "share" ? (
+                <span className="flex size-5 items-center justify-center rounded-full bg-success text-white">
+                  {lastRecipient.method === "system" ? (
+                    <Share2 size={10} strokeWidth={3} />
+                  ) : (
+                    <Link2 size={10} strokeWidth={3} />
+                  )}
+                </span>
+              ) : (
+                <span className="flex size-4 items-center justify-center rounded-full bg-success">
+                  <Check size={10} strokeWidth={3.5} className="text-white" />
+                </span>
+              )}
             </motion.span>
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate font-semibold leading-tight">
-            {person.isSelf ? "Me" : person.name}
+          <div className="flex items-baseline gap-1.5">
+            <span className="truncate font-semibold leading-tight">
+              {person.isSelf
+                ? "Me"
+                : recipientName && lastRecipient?.kind === "bunq"
+                  ? recipientName
+                  : person.name}
+            </span>
+            {/* Show the receipt-side name as a secondary chip when the chosen
+                contact's full name has replaced it, so the link to the
+                original receipt person stays visible. */}
+            {!person.isSelf &&
+              recipientName &&
+              lastRecipient?.kind === "bunq" &&
+              recipientName.toLowerCase() !== person.name.toLowerCase() && (
+                <span className="truncate text-[10px] uppercase tracking-wide text-fg-dim">
+                  · {person.name}
+                </span>
+              )}
           </div>
           <div className="mt-0.5 text-xs text-fg-muted">
             {isSent
-              ? "Payment sent"
+              ? recipientSubtitle
               : items.length === 0
                 ? "No items yet"
                 : `${items.length} ${items.length === 1 ? "item" : "items"}`}
@@ -124,8 +212,8 @@ export function PersonRow({ person, card, sendCount, onSend }: PersonRowProps) {
             aria-label={
               canSend
                 ? isSent
-                  ? `Payment sent to ${person.name}`
-                  : `Mark ${person.name}'s payment as sent`
+                  ? `Payment sent to ${person.name} — send again`
+                  : `Send payment request to ${person.name}`
                 : hasUnassigned
                   ? "Resolve unassigned items first"
                   : `${person.name} has nothing to pay`
@@ -153,14 +241,14 @@ export function PersonRow({ person, card, sendCount, onSend }: PersonRowProps) {
                 </motion.span>
               ) : (
                 <motion.span
-                  key="arrow"
+                  key="send"
                   initial={{ scale: 0.4, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.4, opacity: 0 }}
                   transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
-                  className="flex"
+                  className="flex -translate-x-px"
                 >
-                  <ArrowUpRight size={16} strokeWidth={2.5} />
+                  <Send size={15} strokeWidth={2.5} />
                 </motion.span>
               )}
             </AnimatePresence>
@@ -208,6 +296,33 @@ export function PersonRow({ person, card, sendCount, onSend }: PersonRowProps) {
         )
       )}
     </div>
+
+    <ContactPickerModal
+      open={pickerOpen}
+      personName={person.name}
+      amount={total}
+      merchant={card.merchant}
+      shareText={shareText}
+      bunqUrl={bunqUrl}
+      onClose={() => setPickerOpen(false)}
+      onConfirm={(result) => {
+        setConfirmedRecipient(result);
+        setPickerOpen(false);
+        onSend();
+        // Hand off to the global floating chip so the user can keep
+        // chatting while the just-sent payment stays one tap away.
+        minimize({
+          id: myKey,
+          personName: person.name,
+          amount: total,
+          merchant: card.merchant,
+          recipient: result,
+          shareText,
+          bunqUrl,
+        });
+      }}
+    />
+    </>
   );
 }
 

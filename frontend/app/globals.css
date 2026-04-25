@@ -1,26 +1,57 @@
+/*
+ * Design tokens — bunq-like dark premium fintech.
+ *
+ * Tailwind v4: all tokens live here in @theme, not in tailwind.config.ts.
+ * Every --color-X produces bg-X / text-X / border-X utilities automatically.
+ * Every --radius-X produces rounded-X.
+ */
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* Surfaces (canvas → card → nested element) */
+  --color-base:       #05101F;
+  --color-surface:    #141826;
+  --color-elevated:   #1E2230;
+
+  /* Brand / CTA */
+  --color-primary:    #FF6A00;
+  --color-secondary:  #2D7FF9;
+
+  /* Semantic (state) */
+  --color-success:    #1DD67C;
+  --color-danger:     #FF3B5C;
+  --color-warning:    #F5B700;
+
+  /* Category taxonomy (per-receipt-type color) */
+  --color-cat-purple: #C026D3;
+  --color-cat-teal:   #14B8A6;
+  --color-cat-pink:   #FF2E6C;
+
+  /* Foreground tiers (kept separate from brand colors) */
+  --color-fg:         #FFFFFF;
+  --color-fg-muted:   #8B92A7;
+  --color-fg-dim:     #4A5166;
+
+  /* Luminous hairline border (replaces drop shadows) */
+  --color-hairline:   rgba(255, 255, 255, 0.06);
+
+  /* Custom radii */
+  --radius-card:      28px;
+  --radius-input:     14px;
+
+  /* Display font: references the CSS var injected by next/font in layout.tsx */
+  --font-display:     var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: var(--color-base);
+  color: var(--color-fg);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-display);
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  line-height: 1.05;
 }

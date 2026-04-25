@@ -90,8 +90,9 @@ class ClaudeController:
         """
         system_prompt = ClaudeController._build_system_prompt(user_prompt)
         retry_note = ""
+        max_attempts = 3
 
-        while True:
+        for attempt in range(1, max_attempts + 1):
             response = ClaudeController._wrapper.generate(
                 prompt=(
                     "Receipt text:\n"
@@ -103,24 +104,44 @@ class ClaudeController:
                 system_prompt=system_prompt,
                 temperature=0,
             ).strip()
+            print("\nClaude parse raw response:\n", response)
 
             if response.upper() == "ERROR":
-                retry_note = (
-                    "The user context was invalid or unrelated. Ask for a response "
-                    "that describes who ate what from the receipt."
+                print(
+                    "Claude parse returned ERROR. The frontend should ask the "
+                    "user for a clearer prompt about who ate what."
                 )
-                continue
+                raise ValueError(
+                    "I couldn't determine who ate what from your note. "
+                    "Please add a clearer prompt, for example: "
+                    "'Alice had the burger and cola, Bob had the fries.'"
+                )
 
             try:
                 parsed_json = ClaudeController._extract_json_payload(response)
                 info = ClaudeController._map_info(parsed_json)
                 people = ClaudeController._map_people(parsed_json)
                 return info, people
-            except (json.JSONDecodeError, ValueError, TypeError):
+            except (json.JSONDecodeError, ValueError, TypeError) as exc:
+                print(
+                    "Claude parse validation failed:",
+                    f"{type(exc).__name__}: {exc}",
+                )
+                if attempt == max_attempts:
+                    raise ValueError(
+                        "I could read the receipt, but I couldn't turn your note "
+                        "into a valid split. Please try a clearer prompt naming "
+                        "who had which items."
+                    ) from exc
                 retry_note = (
                     "Previous output was not valid JSON for the required schema. "
                     "Return only valid JSON in the required format."
                 )
+
+        raise ValueError(
+            "I could read the receipt, but I couldn't determine the split. "
+            "Please try again with a clearer prompt."
+        )
 
     @staticmethod
     def _build_system_prompt(user_prompt: str) -> str:

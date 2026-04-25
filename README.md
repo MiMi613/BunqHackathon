@@ -1,6 +1,6 @@
 # Bunq Split
 
-Bunq Split lets you split a restaurant bill with friends in seconds. Take a photo of your receipt, describe who had what, and the app automatically calculates each person's share and sends Bunq payment requests — no manual math, no awkward "who owes who" conversations.
+Bunq Split lets you split a restaurant bill with friends in seconds. Take a photo of your receipt, describe who had what, and the app automatically calculates each person's share and sends Bunq payment requests — no manual math, no awkward "who owes who" conversations. Live demo link: d1d4t9klvhu9zr.cloudfront.net
 
 Built at **Bunq Hackathon 7.0**.
 

@@ -81,7 +81,7 @@ export function SendRequests({
             className="inline-flex items-center gap-2"
           >
             <Check size={16} strokeWidth={3} />
-            All payments sent
+            All payment requests sent
           </motion.span>
         ) : (
           <motion.span

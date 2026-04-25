@@ -116,7 +116,7 @@ export function PersonRow({ person, card, sendCount, onSend }: PersonRowProps) {
       return lastRecipient.method === "system"
         ? "Shared via link"
         : "Link copied";
-    return "Payment sent";
+    return "Payment request sent";
   })();
 
   return (
@@ -212,7 +212,7 @@ export function PersonRow({ person, card, sendCount, onSend }: PersonRowProps) {
             aria-label={
               canSend
                 ? isSent
-                  ? `Payment sent to ${person.name} — send again`
+                  ? `Payment request sent to ${person.name} — send again`
                   : `Send payment request to ${person.name}`
                 : hasUnassigned
                   ? "Resolve unassigned items first"
@@ -351,7 +351,7 @@ function ConfirmationPill() {
           className="pointer-events-none absolute -top-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-success px-2.5 py-1 text-[11px] font-semibold text-white shadow-[0_6px_20px_-6px_rgba(29,214,124,0.7)]"
         >
           <Check size={12} strokeWidth={3} />
-          Payment sent
+          Payment request sent
         </motion.div>
       )}
     </AnimatePresence>

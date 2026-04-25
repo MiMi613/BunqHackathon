@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+import warnings
 import os
 from pathlib import Path
 
@@ -14,8 +14,10 @@ class ClaudeWrapper:
 
     def __init__(self) -> None:
         api_key = os.getenv("ANTHROPIC_API_KEY")
+        
         if not api_key:
-            raise ValueError("ANTHROPIC_API_KEY is not set in environment variables.")
+            warnings.warn("ANTHROPIC_API_KEY is not set. Skipping API-dependent steps.")
+            api_key = None  # keep as None and guard call sites with `if api_key:`
 
         # Keep model name as a plain string.
         self.model_name = "claude-opus-4-1-20250805"

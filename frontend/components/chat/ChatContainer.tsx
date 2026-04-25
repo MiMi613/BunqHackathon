@@ -19,6 +19,7 @@ import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { useChatStore } from "@/lib/store/chatStore";
+import { MinimizedPaymentBar } from "@/components/split/MinimizedPaymentBar";
 import { MessageUser } from "./MessageUser";
 import { MessageAgent } from "./MessageAgent";
 import { InputBar } from "./InputBar";
@@ -89,6 +90,7 @@ export function ChatContainer() {
       </main>
 
       <InputBar />
+      <MinimizedPaymentBar />
     </div>
   );
 }

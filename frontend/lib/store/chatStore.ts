@@ -33,6 +33,8 @@ export interface UserMessage {
   role: "user";
   createdAt: number;
   text: string;
+  /** Set when the user edits the message after sending it. */
+  editedAt?: number;
   imageDataUrl?: string;
   /** Kept so we can re-upload the same bytes for refine without re-picking. */
   imageFile?: File;
@@ -66,6 +68,9 @@ interface ChatState {
     itemId: ItemId,
     newAssignedTo: PersonId[],
   ) => void;
+
+  /** Update the text of a previously sent user message and stamp editedAt. */
+  editUserMessage: (messageId: string, newText: string) => void;
 
   reset: () => void;
 }
@@ -122,6 +127,18 @@ export const useChatStore = create<ChatState>((set) => ({
       }));
       throw (e instanceof Error ? e : new Error("Unknown error"));
     }
+  },
+
+  editUserMessage: (messageId, newText) => {
+    const trimmed = newText.trim();
+    if (!trimmed) return;
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === messageId && m.role === "user" && m.text !== trimmed
+          ? { ...m, text: trimmed, editedAt: Date.now() }
+          : m,
+      ),
+    }));
   },
 
   moveItem: (splitId, itemId, newAssignedTo) => {

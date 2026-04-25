@@ -1,3 +1,4 @@
+import os
 from dataclasses import asdict
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -6,11 +7,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from claude_controller import ClaudeController
 from transcribe import DEFAULT_TRANSCRIPTION_PROMPT, ImageTranscriber, get_image_transcriber
 
+DEFAULT_CORS_ORIGINS = ",".join(
+    [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://217.154.173.202:3000",
+    ]
+)
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ALLOW_ORIGINS", DEFAULT_CORS_ORIGINS).split(",")
+    if origin.strip()
+]
+
 app = FastAPI(title="BunqHackathon API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -66,6 +80,8 @@ async def parse_receipt(
             receipt_text,
             user_prompt,
         )
+    except HTTPException:
+        raise
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:

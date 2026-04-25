@@ -1,0 +1,6 @@
+.venv
+__pycache__
+*.pyc
+.env
+bunq_api_context.conf
+backend

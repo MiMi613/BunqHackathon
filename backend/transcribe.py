@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import io
 import json
 import os
 from dataclasses import asdict
@@ -18,6 +19,9 @@ DEFAULT_TRANSCRIPTION_PROMPT = (
     "Transcribe all visible text in this image. Preserve the original line breaks "
     "and structure as closely as possible. Only return the transcription."
 )
+MAX_IMAGE_UPLOAD_BYTES = 4_500_000
+MAX_IMAGE_EDGE_PX = 1568
+MAX_IMAGE_PIXELS = 1_150_000
 
 
 class ImageTranscriber:
@@ -33,6 +37,11 @@ class ImageTranscriber:
         ".jpg": "image/jpeg",
         ".png": "image/png",
         ".webp": "image/webp",
+    }
+    _FORMAT_TO_MEDIA_TYPE = {
+        "JPEG": "image/jpeg",
+        "PNG": "image/png",
+        "WEBP": "image/webp",
     }
 
     def __init__(
@@ -91,7 +100,11 @@ class ImageTranscriber:
                 "Unsupported image type. Use PNG, JPG, JPEG, WEBP, or GIF."
             )
 
-        image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+        prepared_bytes, prepared_media_type = self._prepare_image_for_upload(
+            image_bytes,
+            media_type=media_type,
+        )
+        image_b64 = base64.b64encode(prepared_bytes).decode("utf-8")
         response = self.client.messages.create(
             model=self.model,
             max_tokens=self.max_tokens,
@@ -103,7 +116,7 @@ class ImageTranscriber:
                             "type": "image",
                             "source": {
                                 "type": "base64",
-                                "media_type": media_type,
+                                "media_type": prepared_media_type,
                                 "data": image_b64,
                             },
                         },
@@ -123,6 +136,110 @@ class ImageTranscriber:
             raise RuntimeError("Anthropic returned an empty transcription.")
 
         return transcription
+
+    def _prepare_image_for_upload(
+        self,
+        image_bytes: bytes,
+        *,
+        media_type: str,
+    ) -> tuple[bytes, str]:
+        try:
+            from PIL import Image, ImageOps
+        except ModuleNotFoundError as exc:
+            raise RuntimeError(
+                "The 'Pillow' package is required for image resizing. "
+                "Run 'pip install -r backend/requirements.txt'."
+            ) from exc
+
+        with Image.open(io.BytesIO(image_bytes)) as original_image:
+            image = ImageOps.exif_transpose(original_image)
+            width, height = image.size
+            needs_resize = (
+                len(image_bytes) > MAX_IMAGE_UPLOAD_BYTES
+                or max(width, height) > MAX_IMAGE_EDGE_PX
+                or (width * height) > MAX_IMAGE_PIXELS
+            )
+
+            if not needs_resize:
+                return image_bytes, media_type
+
+            working = image.copy()
+
+        resize_ratio = min(
+            1.0,
+            MAX_IMAGE_EDGE_PX / max(working.size),
+            (MAX_IMAGE_PIXELS / (working.width * working.height)) ** 0.5,
+        )
+        if resize_ratio < 1.0:
+            resized_width = max(1, int(working.width * resize_ratio))
+            resized_height = max(1, int(working.height * resize_ratio))
+            working = working.resize(
+                (resized_width, resized_height),
+                resample=Image.Resampling.LANCZOS,
+            )
+
+        has_alpha = (
+            working.mode in {"RGBA", "LA"}
+            or (working.mode == "P" and "transparency" in working.info)
+        )
+        output_format = "WEBP" if has_alpha else "JPEG"
+
+        for quality in (85, 75, 65, 55, 45):
+            candidate_bytes = self._encode_image(
+                working,
+                output_format=output_format,
+                quality=quality,
+            )
+            if len(candidate_bytes) <= MAX_IMAGE_UPLOAD_BYTES:
+                return candidate_bytes, self._FORMAT_TO_MEDIA_TYPE[output_format]
+
+        shrinking = working
+        for _ in range(4):
+            next_width = max(1, int(shrinking.width * 0.8))
+            next_height = max(1, int(shrinking.height * 0.8))
+            shrinking = shrinking.resize(
+                (next_width, next_height),
+                resample=Image.Resampling.LANCZOS,
+            )
+            candidate_bytes = self._encode_image(
+                shrinking,
+                output_format=output_format,
+                quality=45,
+            )
+            if len(candidate_bytes) <= MAX_IMAGE_UPLOAD_BYTES:
+                return candidate_bytes, self._FORMAT_TO_MEDIA_TYPE[output_format]
+
+        return candidate_bytes, self._FORMAT_TO_MEDIA_TYPE[output_format]
+
+    def _encode_image(
+        self,
+        image,
+        *,
+        output_format: str,
+        quality: int,
+    ) -> bytes:
+        buffer = io.BytesIO()
+        save_image = image
+        save_kwargs: dict[str, object] = {}
+
+        if output_format == "JPEG":
+            save_image = image.convert("RGB")
+            save_kwargs = {
+                "format": "JPEG",
+                "quality": quality,
+                "optimize": True,
+            }
+        elif output_format == "WEBP":
+            save_kwargs = {
+                "format": "WEBP",
+                "quality": quality,
+                "method": 6,
+            }
+        else:
+            save_kwargs = {"format": output_format}
+
+        save_image.save(buffer, **save_kwargs)
+        return buffer.getvalue()
 
     def transcribe_image_file(
         self,

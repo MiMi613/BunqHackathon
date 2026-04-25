@@ -18,6 +18,7 @@ DEFAULT_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-1")
 DEFAULT_TRANSCRIPTION_PROMPT = (
     "Transcribe all visible text in this image. Preserve the original line breaks "
     "and structure as closely as possible. Only return the transcription."
+    "if sum of all item prices match the total, to confirm if receipt was read correctly. If not, write ERROR only."
 )
 MAX_IMAGE_UPLOAD_BYTES = 4_500_000
 MAX_IMAGE_EDGE_PX = 1568
@@ -298,11 +299,16 @@ def main() -> int:
         model=args.model,
         max_tokens=args.max_tokens,
     )
-    text = transcriber.transcribe_image_file(
-        args.image_path,
-        media_type=args.media_type,
-        prompt=args.prompt,
-    )
+    while True:
+        text = transcriber.transcribe_image_file(
+            args.image_path,
+            media_type=args.media_type,
+            prompt=args.prompt,
+        )
+        if "ERROR" not in text:
+            break
+        print("\nCould not read the receipt clearly. Please provide a better image.")
+        args.image_path = input("Enter new image path: ").strip()
 
     print("\nTranscribed receipt:\n")
     print(text)

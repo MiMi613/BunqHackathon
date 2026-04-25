@@ -14,10 +14,9 @@
  * the matching agent message. Canonical state lives here; the backend is
  * only the source of the initial parse.
  *
- * Mock vs real:
- *   The import below hits the real FastAPI backend at /api/receipt/parse.
- *   For offline development without Claude, swap to:
- *     import { parseReceiptMock as parseReceipt } from "@/lib/api/mock";
+ * Backend source:
+ *   The import below calls the real FastAPI endpoint so the chat flow
+ *   uploads the receipt image + prompt and renders the returned division.
  */
 
 import { create } from "zustand";
@@ -121,6 +120,7 @@ export const useChatStore = create<ChatState>((set) => ({
             : m,
         ),
       }));
+      throw (e instanceof Error ? e : new Error("Unknown error"));
     }
   },
 

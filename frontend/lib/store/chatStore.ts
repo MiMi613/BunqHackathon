@@ -14,10 +14,9 @@
  * the matching agent message. Canonical state lives here; the backend is
  * only the source of the initial parse.
  *
- * Mock vs real:
- *   The import below is aliased to parseReceiptMock for development.
- *   To hit the real backend, change the import to:
- *     import { parseReceipt } from "@/lib/api/split";
+ * Backend source:
+ *   The import below calls the real FastAPI endpoint so the chat flow
+ *   uploads the receipt image + prompt and renders the returned division.
  */
 
 import { create } from "zustand";
@@ -27,7 +26,7 @@ import type {
   SplitCardData,
   SplitId,
 } from "@/lib/types/split";
-import { parseReceiptMock as parseReceipt } from "@/lib/api/mock";
+import { parseReceipt } from "@/lib/api/split";
 
 export interface UserMessage {
   id: string;
@@ -121,6 +120,7 @@ export const useChatStore = create<ChatState>((set) => ({
             : m,
         ),
       }));
+      throw (e instanceof Error ? e : new Error("Unknown error"));
     }
   },
 

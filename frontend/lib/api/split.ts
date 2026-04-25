@@ -32,6 +32,17 @@ export async function parseReceipt(
   });
 
   if (!res.ok) {
+    try {
+      const body = (await res.json()) as { detail?: string };
+      if (body.detail) {
+        throw new Error(body.detail);
+      }
+    } catch (jsonError) {
+      if (jsonError instanceof Error && jsonError.message) {
+        throw jsonError;
+      }
+    }
+
     const body = await res.text().catch(() => "");
     throw new Error(`Receipt parse failed (${res.status}): ${body}`);
   }

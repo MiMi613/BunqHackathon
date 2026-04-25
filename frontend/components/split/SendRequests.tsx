@@ -1,26 +1,23 @@
 "use client";
 
 /*
- * <SendRequests> — the final CTA inside a SplitCard.
+ * <SendRequests> — small status hint at the bottom of the SplitCard.
  *
- * States:
- *  - blocked=true        → disabled, "Assign all items to send"
- *  - nothing owed        → disabled, "Nothing to request" (e.g. user moved
- *                          all items onto themselves)
- *  - ready               → enabled, gradient orange CTA, ArrowUpRight icon
+ * The CTA used to be a single global "Send payment requests" button, but
+ * the per-person send buttons in <PersonRow> now own that action (one
+ * bunq.me link per person). This component only renders a status pill:
  *
- * On click, builds one text with one line per non-self person and invokes
- * navigator.share() (native share sheet on mobile). Falls back to
- * clipboard if the Web Share API is unavailable (desktop browsers).
+ *   blocked         → "Assign all items before sending" (red pill)
+ *   nothing owed    → "Nothing to request" (muted)
+ *   ready           → discoverability hint pointing at the per-person
+ *                     arrow buttons in each row.
+ *
+ * The (card, blocked) prop interface is preserved so SplitCard does not
+ * need to change.
  */
 
-import { useMemo } from "react";
 import { ArrowUpRight, Lock } from "lucide-react";
-import { cn } from "@/lib/utils/cn";
-import {
-  buildShareText,
-  computePersonTotal,
-} from "@/lib/utils/share";
+import { computePersonTotal } from "@/lib/utils/share";
 import type { SplitCardData } from "@/lib/types/split";
 
 interface SendRequestsProps {
@@ -29,56 +26,31 @@ interface SendRequestsProps {
 }
 
 export function SendRequests({ card, blocked }: SendRequestsProps) {
-  const othersOweSomething = useMemo(
-    () =>
-      card.people.some(
-        (p) => !p.isSelf && computePersonTotal(card, p.id) > 0,
-      ),
-    [card],
+  const othersOweSomething = card.people.some(
+    (p) => !p.isSelf && computePersonTotal(card, p.id) > 0.01,
   );
 
-  const disabled = blocked || !othersOweSomething;
-  const label = blocked
-    ? "Assign all items to send"
-    : !othersOweSomething
-      ? "Nothing to request"
-      : "Send payment requests";
+  if (blocked) {
+    return (
+      <div className="flex items-center justify-center gap-2 rounded-full bg-danger/10 py-2.5 text-xs font-medium text-danger">
+        <Lock size={12} />
+        Assign all items before sending
+      </div>
+    );
+  }
 
-  const handleSend = async () => {
-    if (disabled) return;
-    const text = buildShareText(card);
-    if (!text) return;
-
-    if (typeof navigator !== "undefined" && "share" in navigator) {
-      try {
-        await navigator.share({ title: "bunq Split", text });
-        return;
-      } catch {
-        // user cancelled or share failed silently; fall through to clipboard
-      }
-    }
-    try {
-      await navigator.clipboard.writeText(text);
-      alert("Copied payment requests to clipboard");
-    } catch {
-      alert("Could not share. Try again.");
-    }
-  };
+  if (!othersOweSomething) {
+    return (
+      <div className="flex items-center justify-center gap-2 rounded-full bg-elevated py-2.5 text-xs text-fg-muted">
+        Nothing to request
+      </div>
+    );
+  }
 
   return (
-    <button
-      type="button"
-      onClick={handleSend}
-      disabled={disabled}
-      className={cn(
-        "relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-full py-3.5 font-semibold text-white transition-opacity",
-        disabled
-          ? "cursor-not-allowed bg-elevated text-fg-muted"
-          : "bg-gradient-to-r from-[#FF8A3C] to-[#FF6A00] hover:from-[#FF7A2C] hover:to-[#E65F00] active:scale-[0.99]",
-      )}
-    >
-      {disabled ? <Lock size={16} /> : <ArrowUpRight size={18} />}
-      {label}
-    </button>
+    <div className="flex items-center justify-center gap-1.5 rounded-full bg-elevated/60 py-2.5 text-xs text-fg-muted">
+      <ArrowUpRight size={12} className="text-primary" />
+      Tap the arrow next to each person to send their request
+    </div>
   );
 }

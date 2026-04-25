@@ -41,6 +41,18 @@ export async function parseReceipt(
 }
 
 /**
+ * Items that should be split equally across everyone by default.
+ * Matches case-insensitive whole words in EN + IT vocabulary commonly
+ * found on European receipts.
+ */
+const SHARED_COST_RE =
+  /\b(service|servizio|tip|tips|gratuity|gratuities|mancia|cover|coperto|delivery|fee)\b/i;
+
+export function isSharedCostItem(name: string): boolean {
+  return SHARED_COST_RE.test(name);
+}
+
+/**
  * Adapter: turns the backend's nested response into the flat client shape.
  *
  * - Generates client-side ids via crypto.randomUUID() for people and items.
@@ -51,6 +63,9 @@ export async function parseReceipt(
  *   assignedTo = [personId]. The backend currently assigns each item to ONE
  *   person; our client is already set up for shared items (multiple
  *   assignees) when drag&drop starts producing them.
+ * - Final pass: reassigns shared-cost items (service, tip, cover, etc.)
+ *   to ALL people when there is more than one person on the bill — the
+ *   sensible default. The user can still drag-override.
  */
 export function adaptBackendResponse(
   raw: BackendParseReceiptResponse,
@@ -62,11 +77,9 @@ export function adaptBackendResponse(
   }));
 
   // Name → id lookup so we can tie each item back to a person.
-  // If two backend persons shared a name (unlikely), the later one wins —
-  // acceptable for our domain.
   const nameToPersonId = new Map(people.map((p) => [p.name, p.id]));
 
-  const items: SplitItem[] = [];
+  let items: SplitItem[] = [];
   for (const backendPerson of raw.people) {
     const personId = nameToPersonId.get(backendPerson.name);
     if (!personId) continue;
@@ -78,6 +91,14 @@ export function adaptBackendResponse(
         assignedTo: [personId],
       });
     }
+  }
+
+  // Shared-cost auto-split: do it once, here, before the data hits the store.
+  if (people.length > 1) {
+    const allIds = people.map((p) => p.id);
+    items = items.map((item) =>
+      isSharedCostItem(item.name) ? { ...item, assignedTo: [...allIds] } : item,
+    );
   }
 
   return {

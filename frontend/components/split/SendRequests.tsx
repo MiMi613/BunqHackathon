@@ -4,18 +4,18 @@
  * <SendRequests> — the final CTA inside a SplitCard.
  *
  * States:
- *  - blocked=true  → disabled, "Assign all items to send"
- *  - nothing owed  → disabled, "Nothing to request" (e.g. user moved all
- *                    items onto themselves)
- *  - ready         → enabled, "Send payment requests"
+ *  - blocked=true        → disabled, "Assign all items to send"
+ *  - nothing owed        → disabled, "Nothing to request" (e.g. user moved
+ *                          all items onto themselves)
+ *  - ready               → enabled, gradient orange CTA, ArrowUpRight icon
  *
  * On click, builds one text with one line per non-self person and invokes
  * navigator.share() (native share sheet on mobile). Falls back to
- * clipboard if Web Share API is unavailable (desktop browsers).
+ * clipboard if the Web Share API is unavailable (desktop browsers).
  */
 
 import { useMemo } from "react";
-import { Send } from "lucide-react";
+import { ArrowUpRight, Lock } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import {
   buildShareText,
@@ -71,11 +71,13 @@ export function SendRequests({ card, blocked }: SendRequestsProps) {
       onClick={handleSend}
       disabled={disabled}
       className={cn(
-        "flex w-full items-center justify-center gap-2 rounded-full bg-primary py-3.5 font-semibold text-white transition-opacity",
-        disabled && "cursor-not-allowed opacity-40",
+        "relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-full py-3.5 font-semibold text-white transition-opacity",
+        disabled
+          ? "cursor-not-allowed bg-elevated text-fg-muted"
+          : "bg-gradient-to-r from-[#FF8A3C] to-[#FF6A00] hover:from-[#FF7A2C] hover:to-[#E65F00] active:scale-[0.99]",
       )}
     >
-      <Send size={18} />
+      {disabled ? <Lock size={16} /> : <ArrowUpRight size={18} />}
       {label}
     </button>
   );

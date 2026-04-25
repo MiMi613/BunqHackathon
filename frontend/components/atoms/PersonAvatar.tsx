@@ -1,14 +1,17 @@
+"use client";
+
 /*
- * <PersonAvatar> — identifying chip for a person.
+ * <PersonAvatar> — profile-photo-style chip for a person.
  *
- * Choices:
- *  - rounded-[12px] square (not circle), consistent with <CategoryIcon>.
- *  - isSelf=true → always primary (orange) with label "Me": the current
- *    user pops immediately in any card.
- *  - Other people get a deterministic color from the palette via hash of
- *    the name → "Marco" is ALWAYS teal across the entire session. Free
- *    visual consistency.
- *  - First initial only. "Maria Rossi" → "M". Enough for a chip.
+ * Variants:
+ *  - photoUrl provided → renders the image full-bleed.
+ *  - else → renders a deterministic 2-tone diagonal gradient with a gloss
+ *    overlay and the person's initial. Self always uses the brand
+ *    orange→red gradient with the "Me" label so it stays instantly
+ *    recognisable across cards.
+ *
+ * The gradient pair is picked from PALETTE via a stable hash of the name,
+ * so "Marco" is ALWAYS the same gradient throughout the session.
  */
 
 import { cn } from "@/lib/utils/cn";
@@ -17,18 +20,27 @@ interface PersonAvatarProps {
   name: string;
   isSelf?: boolean;
   size?: "sm" | "md" | "lg";
+  photoUrl?: string;
   className?: string;
 }
 
-const AVATAR_PALETTE = [
-  "bg-cat-purple",
-  "bg-cat-teal",
-  "bg-cat-pink",
-  "bg-secondary",
-  "bg-warning",
-] as const;
+interface Gradient {
+  from: string;
+  to: string;
+}
 
-// Non-crypto deterministic hash: same name → same color.
+// Six rich gradients, complementary to the category palette in @theme.
+const PALETTE: Gradient[] = [
+  { from: "#C026D3", to: "#7E22CE" }, // purple
+  { from: "#14B8A6", to: "#0D9488" }, // teal
+  { from: "#FF2E6C", to: "#DB2777" }, // pink
+  { from: "#2D7FF9", to: "#1D4ED8" }, // blue
+  { from: "#F5B700", to: "#D97706" }, // amber
+  { from: "#1DD67C", to: "#059669" }, // green
+];
+
+const SELF_GRADIENT: Gradient = { from: "#FF8A3C", to: "#FF3B5C" };
+
 function hashName(name: string): number {
   let h = 0;
   for (let i = 0; i < name.length; i++) {
@@ -38,33 +50,52 @@ function hashName(name: string): number {
 }
 
 const SIZE_MAP = {
-  sm: "size-8 text-xs",
-  md: "size-10 text-sm",
-  lg: "size-12 text-base",
+  sm: "size-8 text-xs rounded-[10px]",
+  md: "size-10 text-sm rounded-[12px]",
+  lg: "size-12 text-base rounded-[14px]",
 } as const;
 
 export function PersonAvatar({
   name,
   isSelf = false,
   size = "md",
+  photoUrl,
   className,
 }: PersonAvatarProps) {
   const label = isSelf ? "Me" : name.trim().charAt(0).toUpperCase() || "?";
-  const colorClass = isSelf
-    ? "bg-primary"
-    : AVATAR_PALETTE[hashName(name) % AVATAR_PALETTE.length];
+  const gradient = isSelf
+    ? SELF_GRADIENT
+    : PALETTE[hashName(name) % PALETTE.length];
 
   return (
     <div
       className={cn(
-        "inline-flex select-none items-center justify-center rounded-[12px] font-semibold text-white",
+        "relative inline-flex select-none items-center justify-center overflow-hidden font-semibold text-white",
         SIZE_MAP[size],
-        colorClass,
         className,
       )}
+      style={{
+        background: `linear-gradient(135deg, ${gradient.from} 0%, ${gradient.to} 100%)`,
+      }}
       aria-label={isSelf ? "Me" : name}
     >
-      {label}
+      {photoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={photoUrl}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      ) : (
+        <>
+          {/* Gloss overlay: gives the tile a touch of depth without a real shadow */}
+          <span
+            aria-hidden
+            className="absolute inset-0 bg-gradient-to-br from-white/25 via-transparent to-black/15"
+          />
+          <span className="relative tracking-tight">{label}</span>
+        </>
+      )}
     </div>
   );
 }

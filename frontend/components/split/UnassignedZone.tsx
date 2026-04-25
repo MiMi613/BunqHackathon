@@ -3,12 +3,15 @@
 /*
  * <UnassignedZone> — droppable "parking" area.
  *
- * When non-empty, renders danger-colored and blocks the Send CTA upstream.
- * When empty, renders a quiet neutral pill saying everything is assigned.
+ * When non-empty, renders danger-tinted and blocks the Send CTA upstream.
+ * When empty, renders a quiet success pill saying everything is assigned.
  * Dropping an item here clears its assignedTo array (handler in SplitCard).
+ *
+ * AnimatePresence makes chips fade in/out as items are reassigned in/out.
  */
 
 import { useDroppable } from "@dnd-kit/core";
+import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { ItemChip } from "./ItemChip";
 import { cn } from "@/lib/utils/cn";
@@ -30,7 +33,10 @@ export function UnassignedZone({ items }: UnassignedZoneProps) {
         hasItems
           ? "border-danger/60 bg-danger/5"
           : "border-hairline bg-elevated/40",
-        isOver && (hasItems ? "border-danger bg-danger/15" : "border-fg-muted bg-elevated"),
+        isOver &&
+          (hasItems
+            ? "border-danger bg-danger/15"
+            : "border-fg-muted bg-elevated"),
       )}
     >
       <div className="flex items-center gap-2 text-sm">
@@ -53,9 +59,19 @@ export function UnassignedZone({ items }: UnassignedZoneProps) {
 
       {hasItems && (
         <div className="mt-3 flex flex-wrap gap-2">
-          {items.map((item) => (
-            <ItemChip key={item.id} item={item} />
-          ))}
+          <AnimatePresence initial={false}>
+            {items.map((item) => (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, scale: 0.85 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.85 }}
+                transition={{ duration: 0.15 }}
+              >
+                <ItemChip item={item} />
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       )}
     </div>

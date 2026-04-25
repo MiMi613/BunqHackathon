@@ -60,6 +60,8 @@ async def parse_receipt(
             prompt=transcription_prompt,
         )
         print("parse_receipt transcription:\n", receipt_text)
+        if "ERROR" in receipt_text:
+            raise HTTPException(status_code=422, detail="Could not read the receipt clearly. Please upload a better image.")
         info, people = ClaudeController.parse_people_from_receipt(
             receipt_text,
             user_prompt,

@@ -13,7 +13,7 @@
 //   Send    240  (990–1230)
 //   Outro   120  (1230–1350)
 
-import { AbsoluteFill, Series } from "remotion";
+import { AbsoluteFill, Audio, Series, interpolate, staticFile } from "remotion";
 import { colors } from "./design/tokens";
 import { FONT } from "./lib/theme";
 import { TitleScene } from "./scenes/TitleScene";
@@ -25,9 +25,24 @@ import { DragScene } from "./scenes/DragScene";
 import { SendScene } from "./scenes/SendScene";
 import { OutroScene } from "./scenes/OutroScene";
 
+const TOTAL_FRAMES = 1350;
+const FADE_OUT_FRAMES = 30;
+
 export const MainComposition: React.FC = () => {
   return (
     <AbsoluteFill style={{ backgroundColor: colors.bg, fontFamily: FONT }}>
+      <Audio
+        src={staticFile("song.mp3")}
+        endAt={TOTAL_FRAMES}
+        volume={(f) =>
+          interpolate(
+            f,
+            [0, 6, TOTAL_FRAMES - FADE_OUT_FRAMES, TOTAL_FRAMES],
+            [0, 0.7, 0.7, 0],
+            { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+          )
+        }
+      />
       <Series>
         <Series.Sequence durationInFrames={90}>
           <TitleScene />

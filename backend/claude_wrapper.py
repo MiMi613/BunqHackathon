@@ -19,8 +19,11 @@ class ClaudeWrapper:
             warnings.warn("ANTHROPIC_API_KEY is not set. Skipping API-dependent steps.")
             api_key = None  # keep as None and guard call sites with `if api_key:`
 
-        # Keep model name as a plain string.
-        self.model_name = "claude-opus-4-1"
+        # Prefer a dedicated parse model; fall back to the legacy variable.
+        self.model_name = os.getenv(
+            "ANTHROPIC_MODEL_PARSE",
+            os.getenv("ANTHROPIC_MODEL", "claude-opus-4-7"),
+        )
         self.client = anthropic.Anthropic(api_key=api_key)
 
     def generate(
@@ -39,7 +42,9 @@ class ClaudeWrapper:
         if system_prompt:
             payload["system"] = system_prompt
 
-        if temperature is not None:
+        # Newer Claude models reject the deprecated temperature field.
+        # Keep backward compatibility by only sending it when explicitly non-zero.
+        if temperature not in (None, 0):
             payload["temperature"] = temperature
 
         message = self.client.messages.create(**payload)
